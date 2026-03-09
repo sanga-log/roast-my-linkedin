@@ -4,14 +4,14 @@ import { useState, useEffect } from 'react'
 import { HalmiSpinner } from '../../components/HalmiSpinner'
 
 const LOADING_STEPS = [
-  '👓 할미가 안경 쓰고 분석 중...',
-  '📜 오글 단어 족보 확인 중...',
-  '🧂 허세 농도 간 보는 중...',
-  '🪣 현실과의 간극 측정 중...',
+  '👓 할미가 안경 쓰고 보는 중...',
+  '🔍 프로필 구석구석 뒤지는 중...',
+  '📝 할미식 처방전 작성 중...',
+  '🔥 팩폭 강도 조절 중...',
   '👊 할미 주먹 날릴 준비 완료...',
 ]
 
-const STEP_INTERVAL_MS = 900
+const STEP_INTERVAL_MS = 2400
 
 export function LoadingScreen() {
   const [step, setStep] = useState(0)
@@ -45,7 +45,7 @@ export function LoadingScreen() {
       </div>
 
       <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.6 }}>
-        할미떼는 말이여~<br />프로필 분석에 정성을 다하고 있어잉
+        할미떼는 말이여~<br />프로필 분석에 정성을 다하고 있는겨~
       </div>
     </div>
   )
