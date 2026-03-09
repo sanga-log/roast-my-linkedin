@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import * as Sentry from '@sentry/nextjs'
 
 // ── LinkedIn 프로필 스크래핑 API Fallback Chain ──────────────
 // 모든 API는 RapidAPI 기반 — 하나의 RAPIDAPI_KEY로 여러 API 무료 구독
@@ -86,11 +87,13 @@ function linkedinUrl(username: string) {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function genericExtract(data: any): ProfileData | null {
+  // success: false 인 경우 무시
+  if (data?.success === false) return null
   const d = data?.data || data
-  if (!d) return null
+  if (!d || (typeof d === 'object' && Object.keys(d).length === 0)) return null
   const name = d.fullName || d.full_name || d.name
     || safe(() => `${d.firstName || d.first_name} ${d.lastName || d.last_name}`)
-  if (!name || name.trim().length < 2) return null
+  if (!name || name.trim().length < 2 || name === 'undefined undefined') return null
   const headline = d.headline || d.title || d.occupation || ''
   const summary = d.summary || d.about || d.description || ''
   const experience = formatExperience(
@@ -106,31 +109,31 @@ function genericExtract(data: any): ProfileData | null {
 }
 
 const SCRAPERS: ScraperConfig[] = [
-  // 1) LinkedIn Data API (RockAPIs) — GET, URL 기반
-  {
-    name: 'LinkedIn Data API',
-    host: 'linkedin-data-api.p.rapidapi.com',
-    method: 'GET',
-    getUrl: (username) =>
-      `https://linkedin-data-api.p.rapidapi.com/get-profile-data-by-url?url=${encodeURIComponent(linkedinUrl(username))}`,
-    extractProfile: genericExtract,
-  },
-  // 2) Real-Time LinkedIn Scraper (RockAPIs) — GET, URL 기반
-  {
-    name: 'Real-Time LinkedIn Scraper',
-    host: 'linkedin-api8.p.rapidapi.com',
-    method: 'GET',
-    getUrl: (username) =>
-      `https://linkedin-api8.p.rapidapi.com/get-profile-data-by-url?url=${encodeURIComponent(linkedinUrl(username))}`,
-    extractProfile: genericExtract,
-  },
-  // 3) Unlimited LinkedIn Scraper — GET, URL 기반
+  // 1) Unlimited LinkedIn Scraper — GET, URL 기반
   {
     name: 'Unlimited LinkedIn Scraper',
     host: 'unlimited-linkedin-scraper.p.rapidapi.com',
     method: 'GET',
     getUrl: (username) =>
       `https://unlimited-linkedin-scraper.p.rapidapi.com/api/linkedin/profile?url=${encodeURIComponent(linkedinUrl(username))}&use_cache=false`,
+    extractProfile: genericExtract,
+  },
+  // 2) Z-LinkedIn API — GET, username 기반
+  {
+    name: 'Z-LinkedIn API',
+    host: 'z-linkedin.p.rapidapi.com',
+    method: 'GET',
+    getUrl: (username) =>
+      `https://z-linkedin.p.rapidapi.com/api/profile?username=${encodeURIComponent(username)}&includeAdditionalSummary=false`,
+    extractProfile: genericExtract,
+  },
+  // 3) Li Data Scraper — GET, URL 파라미터
+  {
+    name: 'Li Data Scraper',
+    host: 'li-data-scraper.p.rapidapi.com',
+    method: 'GET',
+    getUrl: (username) =>
+      `https://li-data-scraper.p.rapidapi.com/about-this-profile?url=${encodeURIComponent(linkedinUrl(username))}`,
     extractProfile: genericExtract,
   },
   // 4) LinkedIn Person Profile Scraper — POST, JSON body
@@ -170,16 +173,7 @@ const SCRAPERS: ScraperConfig[] = [
       `https://fresh-linkedin-profile-data-api.p.rapidapi.com/api/profile?username=${encodeURIComponent(username)}`,
     extractProfile: genericExtract,
   },
-  // 8) LinkedIn Profile Company Scraper — GET, path 기반
-  {
-    name: 'LinkedIn Profile Company Scraper',
-    host: 'linkedin-profile-company-scraper.p.rapidapi.com',
-    method: 'GET',
-    getUrl: (username) =>
-      `https://linkedin-profile-company-scraper.p.rapidapi.com/linkedin/profile/${encodeURIComponent(username)}`,
-    extractProfile: genericExtract,
-  },
-  // 9) LinkedIn Data Scraper — POST, form 기반
+  // 8) LinkedIn Data Scraper — POST, form 기반
   {
     name: 'LinkedIn Data Scraper',
     host: 'linkedin-data-scraper1.p.rapidapi.com',
@@ -259,6 +253,7 @@ export async function POST(req: NextRequest) {
       }
 
       const data = await response.json()
+      console.log(`[Scrape] ${scraper.name} raw sample:`, JSON.stringify(data).slice(0, 500))
 
       // 일부 API는 200이지만 에러 메시지를 반환
       if (data?.error || data?.message?.toLowerCase?.().includes?.('error') || data?.status === 'error') {
@@ -299,6 +294,10 @@ export async function POST(req: NextRequest) {
 
   // 모든 API 실패
   console.log(`[Scrape] All APIs failed:`, errors)
+  Sentry.captureMessage('All scraping APIs failed', {
+    level: 'error',
+    extra: { errors, username },
+  })
   return NextResponse.json({
     success: false,
     blocked: true,
