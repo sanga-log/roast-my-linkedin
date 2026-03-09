@@ -173,6 +173,10 @@ function StatsBar({ totalRoasts, avgScore }: Stats) {
 function UrlInput({ url, isValid, onChange, onSubmit }: {
   url: string; isValid: boolean; onChange: (v: string) => void; onSubmit: () => void
 }) {
+  const koreanPattern = /linkedin\.com\/in\/.*[가-힣]/
+  const encodedKoreanPattern = /linkedin\.com\/in\/.*%[A-Fa-f0-9]{2}/
+  const hasKoreanUsername = koreanPattern.test(url) || encodedKoreanPattern.test(decodeURIComponent(url))
+
   return (
     <div style={{ width: '100%' }}>
       <div style={{
@@ -220,6 +224,14 @@ function UrlInput({ url, isValid, onChange, onSubmit }: {
           혼내줘 →
         </button>
       </div>
+      {hasKoreanUsername && (
+        <p style={{
+          fontSize: '0.75rem', color: 'rgba(218,165,32,0.7)',
+          marginTop: 8, lineHeight: 1.5,
+        }}>
+          URL에 한글이 포함되어 있으면 스크래핑이 안 될 수 있어유. 그땐 PDF/스크린샷으로 올려주면 할미가 봐줄게유~
+        </p>
+      )}
     </div>
   )
 }
