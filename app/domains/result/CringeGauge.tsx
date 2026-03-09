@@ -7,17 +7,19 @@ const GAUGE_CIRCUMFERENCE = 2 * Math.PI * GAUGE_RADIUS
 const ANIMATION_DURATION_MS = 1200
 
 function getScoreColor(score: number) {
-  if (score < 35) return '#4CAF50'
+  if (score < 20) return '#4CAF50'
+  if (score < 40) return '#8BC34A'
   if (score < 60) return '#DAA520'
   if (score < 80) return '#D2691E'
   return '#C0392B'
 }
 
 function getScoreLabel(score: number) {
-  if (score < 35) return '나쁘지 않구먼 👵'
-  if (score < 60) return '할미가 쯧쯧 😤'
-  if (score < 80) return '아이구야 이걸 💀'
-  return '할미 눈물 난다 😭'
+  if (score < 20) return '어? 니 프로필 괜찮구먼! 할미가 인정이여 👵'
+  if (score < 40) return '쯧, 좀 오글거리긴 하는데 봐줄만 하구먼 😏'
+  if (score < 60) return '아이구~ 할미 손발이 슬슬 오그라드는겨 🫣'
+  if (score < 80) return '거 참, 이 프로필 쓸 때 부끄럽지 않았어유? 💀'
+  return '할미가 이걸 보고 밥을 못 먹겠어유... 😭'
 }
 
 export function CringeGauge({ score }: { score: number }) {

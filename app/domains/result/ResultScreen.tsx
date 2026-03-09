@@ -42,13 +42,15 @@ export function ResultScreen({ result, onRetry }: ResultScreenProps) {
         <TipsSection tips={result.tips} />
       )}
 
-      <MitteCta />
+      <HalmiCheer />
 
       <ActionButtons
         copied={copied}
         onShare={handleShare}
         onRetry={onRetry}
       />
+
+      <FeedbackSection />
     </div>
   )
 }
@@ -69,7 +71,7 @@ function ClicheSection({ words }: { words: string[] }) {
   return (
     <div style={{ padding: '20px 20px 0' }}>
       <div style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '0.1em', marginBottom: 10, textTransform: 'uppercase' }}>
-        💀 할미가 발견한 클리셰들
+        💀 할미가 찾아낸 허세 단어들
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {words.map((w, i) => (
@@ -86,8 +88,6 @@ function ClicheSection({ words }: { words: string[] }) {
 }
 
 function RoastSection({ paragraphs }: { paragraphs: string[] }) {
-  const isLast = (i: number) => i === paragraphs.length - 1
-
   return (
     <div style={{ padding: '20px 20px 0' }}>
       <div style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', letterSpacing: '0.1em', marginBottom: 12, textTransform: 'uppercase' }}>
@@ -102,10 +102,8 @@ function RoastSection({ paragraphs }: { paragraphs: string[] }) {
         {paragraphs.map((p, i) => (
           <p key={i} style={{
             fontSize: '0.92rem', lineHeight: 1.8,
-            color: isLast(i) ? 'rgba(245,240,232,0.5)' : 'var(--text)',
+            color: 'var(--text)',
             animation: `slideUp 0.4s ease ${i * 0.08}s both`,
-            borderLeft: isLast(i) ? '2px solid rgba(218,165,32,0.3)' : 'none',
-            paddingLeft: isLast(i) ? 12 : 0,
           }}>{p}</p>
         ))}
       </div>
@@ -141,20 +139,124 @@ function TipsSection({ tips }: { tips: string[] }) {
   )
 }
 
-function MitteCta() {
+function HalmiCheer() {
   return (
     <div style={{
       margin: '18px 20px 0',
-      background: 'rgba(218,165,32,0.05)',
-      border: '1px dashed rgba(218,165,32,0.2)',
-      borderRadius: 'var(--radius-sm)', padding: '12px 14px',
-      display: 'flex', alignItems: 'center', gap: 10,
+      background: 'linear-gradient(135deg, rgba(218,165,32,0.08), rgba(139,69,19,0.06))',
+      border: '1px solid rgba(218,165,32,0.15)',
+      borderRadius: 'var(--radius-sm)', padding: '16px 18px',
+      textAlign: 'center',
     }}>
-      <span style={{ fontSize: '1.4rem' }}>🍫</span>
-      <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
-        미떼는 말이여~ 동서식품 담당자님 보고 계세여?<br />
-        <span style={{ color: 'rgba(218,165,32,0.7)', fontWeight: 600 }}>할미떼 × 미떼 콜라보 어떻겄어잉~ 💛</span>
-      </span>
+      <p style={{
+        fontSize: '0.92rem', lineHeight: 1.8, color: 'rgba(245,240,232,0.75)',
+        fontStyle: 'italic',
+      }}>
+        &ldquo;할미가 싫은소리 많이 했지만 말이여,<br />
+        니는 충분히 잘하고 있는 사람이여.<br />
+        그거 잊지 말고 살아야 하는겨.&rdquo;
+      </p>
+      <p style={{
+        fontSize: '0.78rem', color: 'rgba(218,165,32,0.6)',
+        marginTop: 8, fontWeight: 600,
+      }}>
+        할미는 니가 자랑스러워유 👵💛
+      </p>
+    </div>
+  )
+}
+
+function FeedbackSection() {
+  const [feedback, setFeedback] = useState('')
+  const [status, setStatus] = useState<'idle' | 'sending' | 'sent'>('idle')
+
+  const handleSubmit = async () => {
+    if (!feedback.trim() || status === 'sending') return
+    setStatus('sending')
+    try {
+      await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: feedback.trim() }),
+      })
+      setStatus('sent')
+      setFeedback('')
+    } catch {
+      setStatus('idle')
+    }
+  }
+
+  if (status === 'sent') {
+    return (
+      <div style={{
+        margin: '16px 20px 0', padding: '18px 14px',
+        background: 'linear-gradient(135deg, rgba(218,165,32,0.1), rgba(139,69,19,0.08))',
+        border: '1px solid rgba(218,165,32,0.25)',
+        borderRadius: 'var(--radius-sm)', textAlign: 'center',
+        animation: 'fadeIn 0.4s ease',
+      }}>
+        <p style={{ fontSize: '1.2rem', marginBottom: 6 }}>🤎</p>
+        <p style={{
+          fontSize: '0.95rem', fontWeight: 600,
+          color: 'var(--halmi-gold)', lineHeight: 1.6,
+        }}>
+          어머~ 고마워유!
+        </p>
+        <p style={{
+          fontSize: '0.8rem', color: 'rgba(245,240,232,0.5)', marginTop: 4,
+        }}>
+          할미가 꼼꼼히 읽어볼겨
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{
+      margin: '16px 20px 0', padding: '14px',
+      background: 'rgba(255,255,255,0.02)',
+      border: '1px solid var(--border)',
+      borderRadius: 'var(--radius-sm)',
+    }}>
+      <p style={{
+        fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)',
+        letterSpacing: '0.08em', marginBottom: 10, textTransform: 'uppercase',
+      }}>
+        💬 할미한테 한마디
+      </p>
+      <textarea
+        value={feedback}
+        onChange={(e) => setFeedback(e.target.value)}
+        placeholder="재밌었어유~ / 이런 기능도 넣어주세유 / 버그 신고..."
+        maxLength={500}
+        style={{
+          width: '100%', minHeight: 60, padding: '10px 12px',
+          background: 'rgba(255,255,255,0.03)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-sm)',
+          color: 'var(--text)', fontSize: '0.84rem', lineHeight: 1.6,
+          resize: 'vertical', outline: 'none',
+          fontFamily: "'Noto Sans KR', sans-serif",
+        }}
+        onFocus={(e) => { e.currentTarget.style.borderColor = 'rgba(218,165,32,0.3)' }}
+        onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--border)' }}
+      />
+      <button
+        onClick={handleSubmit}
+        disabled={!feedback.trim() || status === 'sending'}
+        style={{
+          marginTop: 8, width: '100%', padding: '10px',
+          background: feedback.trim() ? 'rgba(218,165,32,0.12)' : 'rgba(255,255,255,0.03)',
+          border: `1px solid ${feedback.trim() ? 'rgba(218,165,32,0.25)' : 'var(--border)'}`,
+          borderRadius: 'var(--radius-sm)',
+          color: feedback.trim() ? 'var(--halmi-gold)' : 'var(--text-muted)',
+          fontSize: '0.82rem', fontWeight: 600, cursor: feedback.trim() ? 'pointer' : 'default',
+          fontFamily: "'Noto Sans KR', sans-serif",
+          transition: 'all 0.2s',
+        }}
+      >
+        {status === 'sending' ? '보내는 중...' : '할미한테 전달하기'}
+      </button>
     </div>
   )
 }
