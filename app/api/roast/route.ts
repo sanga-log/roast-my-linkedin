@@ -139,7 +139,18 @@ export async function POST(req: NextRequest) {
     const data = await response.json()
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
     const clean = text.replace(/```json|```/g, '').trim()
-    const result = JSON.parse(clean)
+
+    let result
+    try {
+      result = JSON.parse(clean)
+    } catch {
+      console.error('[Roast] JSON parse failed. Raw text:', text.slice(0, 500))
+      Sentry.captureMessage('Gemini returned invalid JSON', {
+        level: 'warning',
+        extra: { rawText: text.slice(0, 1000) },
+      })
+      return NextResponse.json({ error: '할미가 말을 더듬었어유... 다시 시도해주세유' }, { status: 502 })
+    }
 
     notifyUserLog({
       score: result.cringeScore,
