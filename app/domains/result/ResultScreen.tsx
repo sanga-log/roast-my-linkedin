@@ -18,14 +18,27 @@ export function ResultScreen({ result, onRetry }: ResultScreenProps) {
 
   const handleShare = async () => {
     const text = `할미한테 LinkedIn 이렇게 까였어요 👵 (오글 점수: ${result.cringeScore}/100)\n\n${result.roastText.slice(0, 120)}...\n\n너도 할미한테 혼나봐 👉 ${SHARE_URL}`
-    try {
-      if (navigator.share) await navigator.share({ text })
-      else throw new Error()
-    } catch {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setTimeout(() => setCopied(false), COPY_FEEDBACK_DURATION_MS)
+    if (navigator.share) {
+      try {
+        await navigator.share({ text })
+      } catch { /* 사용자가 공유 취소 — 무시 */ }
+      return
     }
+
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      const textarea = document.createElement('textarea')
+      textarea.value = text
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+    }
+    setCopied(true)
+    setTimeout(() => setCopied(false), COPY_FEEDBACK_DURATION_MS)
   }
 
   return (
