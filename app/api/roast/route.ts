@@ -4,8 +4,16 @@ import { notifyUserLog } from '../../lib/slack'
 
 const GEMINI_MODEL = 'gemini-2.5-flash'
 
-const SYSTEM_PROMPT = `당신은 "할미떼" — 수십 년 인생 경험으로 무장한 할머니 AI입니다.
+function getTodayString() {
+  return new Date().toISOString().split('T')[0] // e.g. "2026-03-10"
+}
+
+function buildSystemPrompt() {
+  return `당신은 "할미떼" — 수십 년 인생 경험으로 무장한 할머니 AI입니다.
 LinkedIn 프로필을 보고 할머니 특유의 "쓴소리+애정"으로 팩폭해주세요.
+
+오늘 날짜: ${getTodayString()}
+프로필에 적힌 날짜/기간을 판단할 때 반드시 오늘 날짜 기준으로 과거/현재/미래를 구분하세요.
 
 반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트는 절대 추가하지 마세요.
 
@@ -69,6 +77,7 @@ LinkedIn 프로필을 보고 할머니 특유의 "쓴소리+애정"으로 팩폭
 중요: detectedWords에는 프로필에서 실제로 발견한 허세 단어/문구를 최대한 많이 넣어라. 이것이 "할미가 찾아낸 허세 단어들" 목록이 된다.
 
 cringeScore: 0-19 괜찮구먼 / 20-39 봐줄만 하구먼 / 40-59 손발 오그라든다 / 60-79 부끄럽지 않았어? / 80-100 할미가 밥을 못 먹겠다`
+}
 
 function buildGeminiUrl() {
   return `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
@@ -89,7 +98,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: '프로필 데이터가 부족해요' }, { status: 400 })
       }
       parts.push({
-        text: `${SYSTEM_PROMPT}\n\n아래는 LinkedIn 프로필 정보입니다. 분석해서 할미식으로 팩폭해주세요. 반드시 JSON 형식으로만 응답하세요.\n\n${profileText}`,
+        text: `${buildSystemPrompt()}\n\n아래는 LinkedIn 프로필 정보입니다. 분석해서 할미식으로 팩폭해주세요. 반드시 JSON 형식으로만 응답하세요.\n\n${profileText}`,
       })
     } else {
       const formData = await req.formData()
@@ -108,7 +117,7 @@ export async function POST(req: NextRequest) {
         inline_data: { mime_type: mimeType, data: base64 },
       })
       parts.push({
-        text: `${SYSTEM_PROMPT}\n\n이 LinkedIn 프로필 ${fileType === 'pdf' ? 'PDF' : '스크린샷'}을 분석해서 할미식으로 팩폭해주세요. 반드시 JSON 형식으로만 응답하세요.`,
+        text: `${buildSystemPrompt()}\n\n이 LinkedIn 프로필 ${fileType === 'pdf' ? 'PDF' : '스크린샷'}을 분석해서 할미식으로 팩폭해주세요. 반드시 JSON 형식으로만 응답하세요.`,
       })
     }
 
@@ -138,18 +147,30 @@ export async function POST(req: NextRequest) {
 
     const data = await response.json()
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
-    const clean = text.replace(/```json|```/g, '').trim()
 
     let result
     try {
+      // 1차: 코드블록 제거 후 파싱
+      const clean = text.replace(/```json\n?|```/g, '').trim()
       result = JSON.parse(clean)
     } catch {
-      console.error('[Roast] JSON parse failed. Raw text:', text.slice(0, 500))
-      Sentry.captureMessage('Gemini returned invalid JSON', {
-        level: 'warning',
-        extra: { rawText: text.slice(0, 1000) },
-      })
-      return NextResponse.json({ error: '할미가 말을 더듬었어유... 다시 시도해주세유' }, { status: 502 })
+      // 2차: 첫 번째 { ... 마지막 } 추출 후 파싱
+      try {
+        const firstBrace = text.indexOf('{')
+        const lastBrace = text.lastIndexOf('}')
+        if (firstBrace !== -1 && lastBrace > firstBrace) {
+          result = JSON.parse(text.slice(firstBrace, lastBrace + 1))
+        } else {
+          throw new Error('No JSON object found')
+        }
+      } catch {
+        console.error('[Roast] JSON parse failed. Raw text:', text.slice(0, 500))
+        Sentry.captureMessage('Gemini returned invalid JSON', {
+          level: 'warning',
+          extra: { rawText: text.slice(0, 1000) },
+        })
+        return NextResponse.json({ error: '할미가 말을 더듬었어유... 다시 시도해주세유' }, { status: 502 })
+      }
     }
 
     notifyUserLog({
