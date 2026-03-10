@@ -28,6 +28,18 @@ export function UploadScreen({ uploadMode, file, onModeChange, onFile, onAnalyze
         </div>
 
         <SubmitButton hasFile={!!file} onClick={onAnalyze} />
+
+        <button onClick={onBack} style={{
+          width: '100%', padding: '14px',
+          background: 'none',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius)',
+          color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 600,
+          cursor: 'pointer',
+          transition: 'all 0.2s', fontFamily: "'Noto Sans KR', sans-serif",
+        }}>
+          ← 처음으로 돌아가기
+        </button>
       </div>
     </div>
   )
