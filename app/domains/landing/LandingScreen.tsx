@@ -175,7 +175,9 @@ function UrlInput({ url, isValid, onChange, onSubmit }: {
 }) {
   const koreanPattern = /linkedin\.com\/in\/.*[가-힣]/
   const encodedKoreanPattern = /linkedin\.com\/in\/.*%[A-Fa-f0-9]{2}/
-  const hasKoreanUsername = koreanPattern.test(url) || encodedKoreanPattern.test(decodeURIComponent(url))
+  let decoded = url
+  try { decoded = decodeURIComponent(url) } catch {}
+  const hasKoreanUsername = koreanPattern.test(url) || encodedKoreanPattern.test(decoded)
 
   return (
     <div style={{ width: '100%' }}>
