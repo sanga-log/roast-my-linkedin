@@ -1,3 +1,18 @@
+export async function notifyLinkedInVisit(linkedinUrl: string) {
+  const webhookUrl = process.env.SLACK_WEBHOOK_USER_LOG
+  if (!webhookUrl) return
+
+  try {
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: `🔗 ${linkedinUrl}` }),
+    })
+  } catch {
+    console.error('[Slack] linkedin visit 전송 실패')
+  }
+}
+
 export async function notifyFeedback(message: string) {
   const webhookUrl = process.env.SLACK_WEBHOOK_USER_LOG
   if (!webhookUrl) return

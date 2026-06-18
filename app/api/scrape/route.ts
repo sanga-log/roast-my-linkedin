@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
+import { notifyLinkedInVisit } from '../../lib/slack'
 
 // ── LinkedIn 프로필 스크래핑 API Fallback Chain ──────────────
 // 모든 API는 RapidAPI 기반 — 하나의 RAPIDAPI_KEY로 여러 API 무료 구독
@@ -191,6 +192,8 @@ export async function POST(req: NextRequest) {
   if (!url || !url.includes('linkedin.com/in/')) {
     return NextResponse.json({ success: false, blocked: true, reason: 'invalid_url' })
   }
+
+  notifyLinkedInVisit(url)
 
   const username = extractUsername(url)
   if (!username) {
