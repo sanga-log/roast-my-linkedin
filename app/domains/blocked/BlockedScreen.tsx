@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import type { BlockReason } from '../../lib/types'
+import { MAX_ROASTS_PER_HOUR } from '../../lib/limits'
 
 type Phase = 'error' | 'reveal' | 'ready'
 
@@ -22,7 +23,8 @@ export function BlockedScreen({ reason, onContinue }: BlockedScreenProps) {
     return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [])
 
-  const isQuota = reason === 'quota' || reason === 'overloaded' || reason === 'api_error'
+  const isRateLimited = reason === 'rate_limited'
+  const isQuota = isRateLimited || reason === 'quota' || reason === 'overloaded' || reason === 'api_error'
 
   return (
     <div style={{
@@ -31,9 +33,9 @@ export function BlockedScreen({ reason, onContinue }: BlockedScreenProps) {
       padding: '48px 20px',
     }}>
       <div style={{ width: '100%', maxWidth: 420, display: 'flex', flexDirection: 'column', gap: 20 }}>
-        <ErrorTerminal isQuota={isQuota} />
+        <ErrorTerminal isQuota={isQuota} isRateLimited={isRateLimited} />
 
-        {phase !== 'error' && <RevealSection isQuota={isQuota} />}
+        {phase !== 'error' && (isRateLimited ? <RateLimitSection /> : <RevealSection isQuota={isQuota} />)}
 
         {phase === 'ready' && (
           <button onClick={onContinue} style={{
@@ -46,7 +48,7 @@ export function BlockedScreen({ reason, onContinue }: BlockedScreenProps) {
             animation: 'bounceIn 0.5s ease',
             fontFamily: "'Noto Sans KR', sans-serif",
           }}>
-            할미 방법으로 계속하기
+            {isRateLimited ? '처음으로 돌아가기' : '할미 방법으로 계속하기'}
           </button>
         )}
       </div>
@@ -54,10 +56,16 @@ export function BlockedScreen({ reason, onContinue }: BlockedScreenProps) {
   )
 }
 
-function ErrorTerminal({ isQuota }: { isQuota: boolean }) {
+function ErrorTerminal({ isQuota, isRateLimited }: { isQuota: boolean; isRateLimited: boolean }) {
   const accentColor = isQuota ? '#DAA520' : '#C0392B'
-  const label = isQuota ? 'API_QUOTA_EXHAUSTED' : 'SCRAPING_BLOCKED'
-  const lines = isQuota
+  const label = isRateLimited ? 'TOO_MANY_ROASTS' : isQuota ? 'API_QUOTA_EXHAUSTED' : 'SCRAPING_BLOCKED'
+  const lines = isRateLimited
+    ? [
+      { text: `> 1시간에 ${MAX_ROASTS_PER_HOUR}번 초과`, highlight: false },
+      { text: '> 429 Too Many Requests', highlight: true },
+      { text: '> Please try again later', highlight: false },
+    ]
+    : isQuota
     ? [
       { text: '> 요청 한도 초과', highlight: false },
       { text: '> 429 Too Many Requests', highlight: true },
@@ -69,7 +77,9 @@ function ErrorTerminal({ isQuota }: { isQuota: boolean }) {
       { text: '> Bot detection triggered', highlight: false },
     ]
 
-  const reasonText = isQuota
+  const reasonText = isRateLimited
+    ? '너무 자주 찾아와부렀어유~'
+    : isQuota
     ? '할미떼가 너무 인기가 많아부러서 요청 한도를 넘겨부렀어유~'
     : 'LinkedIn이 할미 못 들어오게 막아부렀어유~'
 
@@ -107,6 +117,40 @@ function ErrorTerminal({ isQuota }: { isQuota: boolean }) {
         fontSize: '0.8125rem', color: 'rgba(255,255,255,0.6)', lineHeight: 1.6,
       }}>
         {reasonText}
+      </div>
+    </div>
+  )
+}
+
+function RateLimitSection() {
+  return (
+    <div style={{ animation: 'slideUp 0.5s ease', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{
+        width: 100, margin: '0 auto 4px',
+        animation: 'wobble 1s ease-in-out infinite',
+        filter: 'drop-shadow(0 0 8px rgba(218,165,32,0.35))',
+      }}>
+        <img src="/halmi.png" alt="할미" style={{ width: '100%', objectFit: 'contain' }} />
+      </div>
+
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(139,69,19,0.12), rgba(218,165,32,0.06))',
+        border: '1px solid rgba(218,165,32,0.2)',
+        borderRadius: 'var(--radius)', padding: '24px 20px', textAlign: 'center',
+      }}>
+        <div style={{
+          fontFamily: "'Noto Sans KR', sans-serif",
+          fontSize: '1.375rem', fontWeight: 900, letterSpacing: '0.04em',
+          marginBottom: 12, lineHeight: 1.4,
+          background: 'linear-gradient(135deg, #DAA520, #D2691E)',
+          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+        }}>
+          할미도 숨 좀 돌려야 혀유~
+        </div>
+        <p style={{ fontSize: '0.875rem', color: 'rgba(255,255,255,0.6)', lineHeight: 1.7 }}>
+          한 시간에 <strong style={{ color: 'rgba(255,255,255,0.87)' }}>{MAX_ROASTS_PER_HOUR}번</strong>까지만 봐줄 수 있는겨.<br />
+          한 시간쯤 뒤에 다시 와유~
+        </p>
       </div>
     </div>
   )
