@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { notifyUserLog } from '../../lib/slack'
+import { isRateLimited } from '../../lib/rateLimit'
 
 const GEMINI_MODEL = 'gemini-2.5-flash'
 
@@ -119,6 +120,10 @@ export async function POST(req: NextRequest) {
       parts.push({
         text: `${buildSystemPrompt()}\n\n이 LinkedIn 프로필 ${fileType === 'pdf' ? 'PDF' : '스크린샷'}을 분석해서 할미식으로 팩폭해주세요. 반드시 JSON 형식으로만 응답하세요.`,
       })
+    }
+
+    if (await isRateLimited(req, 'roast')) {
+      return NextResponse.json({ blocked: true, reason: 'rate_limited' }, { status: 429 })
     }
 
     const response = await fetch(`${buildGeminiUrl()}?key=${process.env.GEMINI_API_KEY}`, {

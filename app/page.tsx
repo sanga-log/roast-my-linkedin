@@ -15,6 +15,7 @@ const MIN_SCRAPING_DISPLAY_MS = 2300
 function parseBlockReason(reason?: string): BlockReason {
   if (reason === 'quota_exhausted') return 'quota'
   if (reason === 'overloaded') return 'overloaded'
+  if (reason === 'rate_limited') return 'rate_limited'
   return 'api_error'
 }
 
@@ -73,7 +74,7 @@ export default function Home() {
       if (scrapeData.success && scrapeData.profile?.profileText) {
         await analyzeProfileText(scrapeData.profile.profileText)
       } else {
-        setBlockReason('scraping')
+        setBlockReason(scrapeData.reason === 'rate_limited' ? 'rate_limited' : 'scraping')
         setScreen('blocked')
       }
     } catch {
@@ -154,7 +155,12 @@ export default function Home() {
       return <ScrapingScreen url={url} />
 
     case 'blocked':
-      return <BlockedScreen reason={blockReason} onContinue={() => setScreen('upload')} />
+      return (
+        <BlockedScreen
+          reason={blockReason}
+          onContinue={blockReason === 'rate_limited' ? reset : () => setScreen('upload')}
+        />
+      )
 
     case 'upload':
       return (

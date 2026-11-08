@@ -2,7 +2,7 @@ export type Screen = 'landing' | 'scraping' | 'blocked' | 'upload' | 'loading' |
 
 export type UploadMode = 'pdf' | 'image'
 
-export type BlockReason = 'scraping' | 'quota' | 'overloaded' | 'api_error'
+export type BlockReason = 'scraping' | 'quota' | 'overloaded' | 'api_error' | 'rate_limited'
 
 export interface RoastResult {
   cringeScore: number
