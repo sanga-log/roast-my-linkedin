@@ -77,12 +77,13 @@ LinkedIn 프로필을 넣으면 **충청도 할머니 AI**가 오글거리는 �
 | -------------------------- | ---------------------------------- | :--: |
 | `GEMINI_API_KEY`           | Google Gemini API 키               |  ✅  |
 | `RAPIDAPI_KEY`             | RapidAPI 키 (LinkedIn 스크래핑)    |  ✅  |
-| `UPSTASH_REDIS_REST_URL`   | Upstash Redis REST URL (통계 저장) |  ✅  |
+| `UPSTASH_REDIS_REST_URL`   | Upstash Redis REST URL (통계·이벤트 기록) |  ✅  |
 | `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST 토큰            |  ✅  |
 | `NEXT_PUBLIC_SENTRY_DSN`   | Sentry DSN                         |      |
 | `SENTRY_ORG`               | Sentry 조직명                      |      |
 | `SENTRY_PROJECT`           | Sentry 프로젝트명                  |      |
 | `SLACK_WEBHOOK_USER_LOG`   | Slack Webhook URL (사용 로그)      |      |
+| `SLACK_WEBHOOK_ERROR_LOG`  | Slack Webhook URL (서버 에러 알림, `#error-log`) |      |
 
 <br>
 
@@ -136,7 +137,11 @@ app/
 │
 ├── lib/
 │   ├── types.ts                # 전역 공유 타입
-│   └── slack.ts                # Slack 알림 유틸
+│   ├── slack.ts                # Slack 알림 유틸
+│   ├── redis.ts                # Upstash Redis 클라이언트, 운영 환경 판별
+│   ├── events.ts               # 사용 이벤트 기록 (Redis)
+│   ├── errorAlert.ts           # 서버 에러 → Slack 직접 알림 (1시간 1회)
+│   └── rateLimit.ts            # IP당 요청 제한
 │
 └── api/
     ├── roast/route.ts          # Gemini API 호출
@@ -251,7 +256,9 @@ URL 입력 시 아래 8개 RapidAPI를 순서대로 시도합니다. 하나라�
 
 ## 모니터링
 
-에러는 Sentry로 수집하고, Sentry에서 Slack `#error-log` 채널로 자동 알림을 보냅니다. 정상적인 사용 로그는 Slack Webhook으로 별도 채널에 기록합니다.
+에러는 Sentry로 수집합니다. Sentry 무료(Developer) 플랜은 Slack 연동을 지원하지 않아서, 서버 에러는 `SLACK_WEBHOOK_ERROR_LOG` 웹훅으로 `#error-log`에 직접 알립니다. 할당량이 바닥나면 모든 요청이 같은 에러를 내므로 같은 에러는 1시간에 한 번만 보냅니다. 브라우저 에러는 Sentry에만 남습니다.
+
+정상적인 사용 로그는 Slack Webhook으로 `#user-log`에 알리고, 같은 내용을 Upstash Redis에도 기록합니다. Slack 무료 플랜은 90일 지난 메시지를 숨기고 1년이 지나면 지우기 때문입니다.
 
 ```
 👵 팩폭 완료!
@@ -260,6 +267,18 @@ URL 입력 시 아래 8개 RapidAPI를 순서대로 시도합니다. 하나라�
 • 분석 방식: URL 스크래핑
 ```
 
-DB나 어드민 패널 없이 Slack 하나로 활동 로그, 피드백, 에러 알림을 모두 처리합니다.
+### 이벤트 기록 (Redis)
+
+운영 환경 이벤트는 `halmi:events` 리스트에 최신순 JSON으로 쌓입니다. 로컬·프리뷰는 `halmi:dev:events`에 따로 쌓입니다. LinkedIn 주소와 IP는 남기지 않습니다.
+
+| type               | 언제                      | 필드                                   |
+| ------------------ | ------------------------- | -------------------------------------- |
+| `scrape_blocked`   | 스크래핑 차단 화면으로 보낼 때 | `reason`, `hasKoreanUsername`          |
+| `scrape_succeeded` | 스크래핑 성공             | `scraper`                              |
+| `roast_succeeded`  | 팩폭 완료                 | `input`(url·pdf·screenshot), `score`, `detectedWords` |
+| `roast_failed`     | 분석 실패                 | `input`, `reason`                      |
+| `feedback_sent`    | 피드백 전송               | `message`                              |
+
+Upstash 콘솔 Data Browser나 `LRANGE halmi:events 0 -1`로 볼 수 있습니다.
 
 <br>

@@ -69,3 +69,18 @@ export async function notifyUserLog(data: {
     console.error('[Slack] user log 전송 실패')
   }
 }
+
+export async function notifyError(text: string) {
+  const webhookUrl = process.env.SLACK_WEBHOOK_ERROR_LOG
+  if (!webhookUrl) return
+
+  try {
+    await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    })
+  } catch {
+    console.error('[Slack] error log 전송 실패')
+  }
+}
