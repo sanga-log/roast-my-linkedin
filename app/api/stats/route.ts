@@ -1,12 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { Redis } from '@upstash/redis'
-
-function getRedis() {
-  const url = process.env.UPSTASH_REDIS_REST_URL
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN
-  if (!url || !token) return null
-  return new Redis({ url, token })
-}
+import { getRedis } from '../../lib/redis'
 
 const KEYS = {
   totalRoasts: 'halmi:total_roasts',

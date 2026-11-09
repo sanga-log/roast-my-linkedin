@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { notifyUserLog } from '../../lib/slack'
 import { isRateLimited } from '../../lib/rateLimit'
+import { recordEvent, type RoastFailReason, type RoastInput } from '../../lib/events'
+import { alertServerError } from '../../lib/errorAlert'
 
 const GEMINI_MODEL = 'gemini-2.5-flash'
 
@@ -84,16 +86,26 @@ function buildGeminiUrl() {
   return `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 }
 
-export async function POST(req: NextRequest) {
-  try {
-    const contentType = req.headers.get('content-type') || ''
+// 실패 응답마다 사유를 남겨 어느 단계에서 사용자를 잃는지 볼 수 있게 한다
+async function respondFailed(
+  input: RoastInput,
+  reason: RoastFailReason,
+  body: Record<string, unknown>,
+  status: number,
+) {
+  await recordEvent({ type: 'roast_failed', input, reason })
+  return NextResponse.json(body, { status })
+}
 
+export async function POST(req: NextRequest) {
+  const contentType = req.headers.get('content-type') || ''
+  let input: RoastInput = contentType.includes('application/json') ? 'url' : 'screenshot'
+
+  try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const parts: any[] = []
-    let method: 'scrape' | 'upload' = 'upload'
 
-    if (contentType.includes('application/json')) {
-      method = 'scrape'
+    if (input === 'url') {
       const { profileText } = await req.json()
       if (!profileText || profileText.length < 20) {
         return NextResponse.json({ error: '프로필 데이터가 부족해요' }, { status: 400 })
@@ -109,6 +121,7 @@ export async function POST(req: NextRequest) {
       if (!file) {
         return NextResponse.json({ error: '파일이 없어요' }, { status: 400 })
       }
+      input = fileType === 'pdf' ? 'pdf' : 'screenshot'
 
       const bytes = await file.arrayBuffer()
       const base64 = Buffer.from(bytes).toString('base64')
@@ -123,7 +136,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (await isRateLimited(req, 'roast')) {
-      return NextResponse.json({ blocked: true, reason: 'rate_limited' }, { status: 429 })
+      return respondFailed(input, 'rate_limited', { blocked: true, reason: 'rate_limited' }, 429)
     }
 
     const response = await fetch(`${buildGeminiUrl()}?key=${process.env.GEMINI_API_KEY}`, {
@@ -135,19 +148,15 @@ export async function POST(req: NextRequest) {
     })
 
     if (response.status === 429) {
-      return NextResponse.json(
-        { blocked: true, reason: 'quota_exhausted' },
-        { status: 429 }
-      )
+      await alertServerError({ source: '/api/roast', title: 'Gemini 할당량 초과 (429)' })
+      return respondFailed(input, 'quota_exhausted', { blocked: true, reason: 'quota_exhausted' }, 429)
     }
 
     if (!response.ok) {
       const err = await response.text()
       console.error('Gemini API error:', response.status, err)
-      return NextResponse.json(
-        { blocked: true, reason: 'api_error' },
-        { status: response.status }
-      )
+      await alertServerError({ source: '/api/roast', title: `Gemini API 에러 (${response.status})`, detail: err })
+      return respondFailed(input, 'api_error', { blocked: true, reason: 'api_error' }, response.status)
     }
 
     const data = await response.json()
@@ -174,20 +183,27 @@ export async function POST(req: NextRequest) {
           level: 'warning',
           extra: { rawText: text.slice(0, 1000) },
         })
-        return NextResponse.json({ error: '할미가 말을 더듬었어유... 다시 시도해주세유' }, { status: 502 })
+        // 원문에는 사용자 프로필 내용이 섞여 있어 슬랙에는 보내지 않고 Sentry에만 남긴다
+        await alertServerError({ source: '/api/roast', title: 'Gemini 응답 JSON 파싱 실패' })
+        return respondFailed(input, 'invalid_json', { error: '할미가 말을 더듬었어유... 다시 시도해주세유' }, 502)
       }
     }
 
+    const detectedWords: string[] = result.detectedWords || []
+    await recordEvent({ type: 'roast_succeeded', input, score: result.cringeScore, detectedWords })
+
     notifyUserLog({
       score: result.cringeScore,
-      detectedWords: result.detectedWords || [],
-      method,
+      detectedWords,
+      method: input === 'url' ? 'scrape' : 'upload',
     })
 
     return NextResponse.json(result)
   } catch (e) {
     console.error(e)
     Sentry.captureException(e)
-    return NextResponse.json({ error: '분석 중 오류가 발생했어요' }, { status: 500 })
+    const error = e instanceof Error ? e : new Error(String(e))
+    await alertServerError({ source: '/api/roast', title: `처리 중 예외 (${error.name})`, detail: error.message })
+    return respondFailed(input, 'server_error', { error: '분석 중 오류가 발생했어요' }, 500)
   }
 }

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { notifyLinkedInVisit } from '../../lib/slack'
 import { isRateLimited } from '../../lib/rateLimit'
+import { recordEvent, type ScrapeBlockReason } from '../../lib/events'
+import { alertServerError } from '../../lib/errorAlert'
 
 // ── LinkedIn 프로필 스크래핑 API Fallback Chain ──────────────
 // 모든 API는 RapidAPI 기반 — 하나의 RAPIDAPI_KEY로 여러 API 무료 구독
@@ -187,28 +189,48 @@ const SCRAPERS: ScraperConfig[] = [
   },
 ]
 
+// 한글 username은 스크래퍼들이 못 읽는 경우가 많아 차단 사유와 함께 따로 센다
+function hasKoreanUsername(url: string) {
+  try {
+    return /[가-힣]/.test(decodeURIComponent(url))
+  } catch {
+    return false
+  }
+}
+
+async function respondBlocked(
+  reason: ScrapeBlockReason,
+  url: string,
+  init?: ResponseInit,
+  extra?: Record<string, unknown>,
+) {
+  await recordEvent({ type: 'scrape_blocked', reason, hasKoreanUsername: hasKoreanUsername(url) })
+  return NextResponse.json({ success: false, blocked: true, reason, ...extra }, init)
+}
+
 export async function POST(req: NextRequest) {
   const { url } = await req.json()
 
   if (!url || !url.includes('linkedin.com/in/')) {
-    return NextResponse.json({ success: false, blocked: true, reason: 'invalid_url' })
+    return respondBlocked('invalid_url', String(url ?? ''))
   }
 
   if (await isRateLimited(req, 'scrape')) {
-    return NextResponse.json({ success: false, blocked: true, reason: 'rate_limited' }, { status: 429 })
+    return respondBlocked('rate_limited', url, { status: 429 })
   }
 
   notifyLinkedInVisit(url)
 
   const username = extractUsername(url)
   if (!username) {
-    return NextResponse.json({ success: false, blocked: true, reason: 'invalid_url' })
+    return respondBlocked('invalid_url', url)
   }
 
   const apiKey = process.env.RAPIDAPI_KEY
   if (!apiKey) {
     console.error('RAPIDAPI_KEY not set')
-    return NextResponse.json({ success: false, blocked: true, reason: 'no_api_key' })
+    await alertServerError({ source: '/api/scrape', title: 'RAPIDAPI_KEY 환경변수 없음' })
+    return respondBlocked('no_api_key', url)
   }
 
   const errors: string[] = []
@@ -279,6 +301,7 @@ export async function POST(req: NextRequest) {
       }
 
       console.log(`[Scrape] Success with ${scraper.name}: ${profile.name}`)
+      await recordEvent({ type: 'scrape_succeeded', scraper: scraper.name })
 
       return NextResponse.json({
         success: true,
@@ -306,10 +329,11 @@ export async function POST(req: NextRequest) {
     level: 'error',
     extra: { errors, username },
   })
-  return NextResponse.json({
-    success: false,
-    blocked: true,
-    reason: 'all_apis_exhausted',
-    errors,
+  // username은 개인정보라 슬랙 알림에는 API별 실패 사유만 담는다
+  await alertServerError({
+    source: '/api/scrape',
+    title: '스크래핑 API 전부 실패 (무료 할당량 소진 가능성)',
+    detail: errors.join(' / '),
   })
+  return respondBlocked('all_apis_exhausted', url, undefined, { errors })
 }

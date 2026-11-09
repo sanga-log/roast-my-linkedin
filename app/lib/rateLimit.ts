@@ -1,15 +1,8 @@
 import type { NextRequest } from 'next/server'
-import { Redis } from '@upstash/redis'
 import { MAX_ROASTS_PER_HOUR } from './limits'
+import { getRedis } from './redis'
 
 const WINDOW_SECONDS = 60 * 60
-
-function getRedis() {
-  const url = process.env.UPSTASH_REDIS_REST_URL
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN
-  if (!url || !token) return null
-  return new Redis({ url, token })
-}
 
 function getClientIp(req: NextRequest) {
   return req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'unknown'
