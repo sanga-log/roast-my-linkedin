@@ -24,7 +24,7 @@ LinkedIn 프로필을 넣으면 **충청도 할머니 AI**가 오글거리는 �
 
 ## 주요 기능
 
-- **🔗 URL 입력** — 8개 API 자동 fallback 스크래핑으로 프로필을 가져와 즉시 분석
+- **🔗 URL 입력** — 10개 API 자동 fallback 스크래핑으로 프로필을 가져와 즉시 분석
 - **📄 PDF/스크린샷 업로드** — AI Vision으로 이미지를 직접 읽어서 팩폭
 - **📊 오글 점수** — 0~100점 게이지 + 허세 단어 뱃지 + 할미 충고 + 개선 팁
 - **💬 피드백 시스템** — Slack Webhook으로 사용자 피드백 실시간 수신
@@ -39,7 +39,7 @@ LinkedIn 프로필을 넣으면 **충청도 할머니 AI**가 오글거리는 �
    └─ LinkedIn URL 입력
 
 ② 스크래핑
-   └─ 8개 RapidAPI를 순차적으로 시도
+   └─ 10개 RapidAPI를 순차적으로 시도
        ├─ 성공 → AI 분석으로 이동
        └─ 전부 실패
             ├─ 할당량 초과 → "할미떼가 너무 인기가 많아부러서 요청 한도를 넘겨부렀어유~"
@@ -63,7 +63,7 @@ LinkedIn 프로필을 넣으면 **충청도 할머니 AI**가 오글거리는 �
 | 프레임워크    | Next.js 14 (App Router)              |
 | 언어          | TypeScript                           |
 | AI            | Google Gemini 2.5 Flash              |
-| 스크래핑      | RapidAPI (8개 API fallback chain)    |
+| 스크래핑      | RapidAPI (10개 API fallback chain)   |
 | 통계 저장     | Upstash Redis                        |
 | 에러 모니터링 | Sentry                               |
 | 알림          | Slack Webhook (사용자 로그 + 피드백) |
@@ -145,7 +145,7 @@ app/
 │
 └── api/
     ├── roast/route.ts          # Gemini API 호출
-    ├── scrape/route.ts         # LinkedIn 스크래핑 (8개 API fallback)
+    ├── scrape/route.ts         # LinkedIn 스크래핑 (10개 API fallback)
     ├── feedback/route.ts       # 피드백 → Slack 전송
     └── stats/route.ts          # 통계 API (Upstash Redis)
 
@@ -177,7 +177,7 @@ type Screen =
 
 ## 스크래핑 Fallback Chain
 
-URL 입력 시 아래 8개 RapidAPI를 순서대로 시도합니다. 하나라도 성공하면 즉시 AI 분석으로 넘어가고, 전부 실패하면 "이럴 줄 알고 할미가 다~ 준비해뒀당께" 화면이 나타나면서 PDF/스크린샷 업로드를 안내합니다.
+URL 입력 시 아래 10개 RapidAPI를 순서대로 시도합니다. 하나라도 성공하면 즉시 AI 분석으로 넘어가고, 전부 실패하면 "이럴 줄 알고 할미가 다~ 준비해뒀당께" 화면이 나타나면서 PDF/스크린샷 업로드를 안내합니다.
 
 > LinkedIn은 봇 접근을 철저하게 차단합니다. 차단 사유에 따라 다른 메시지를 보여줍니다:
 > - **429 할당량 초과** → "할미떼가 너무 인기가 많아부러서 요청 한도를 넘겨부렀어유~"
@@ -186,18 +186,21 @@ URL 입력 시 아래 8개 RapidAPI를 순서대로 시도합니다. 하나라�
 >
 > 차단 자체가 에러가 아니라 서비스 스토리의 일부가 되도록 설계했습니다.
 
-| 순서 | API 이름                          |
-| :--: | --------------------------------- |
-|  1   | Unlimited LinkedIn Scraper        |
-|  2   | Z-LinkedIn API                    |
-|  3   | Li Data Scraper                   |
-|  4   | LinkedIn Person Profile Scraper   |
-|  5   | Fresh LinkedIn Scraper            |
-|  6   | LinkedIn Scraper (Real-Time Fast) |
-|  7   | Fresh LinkedIn Profile Data API   |
-|  8   | LinkedIn Data Scraper             |
+| 순서 | API 이름                                        | RapidAPI host                                           | 무료 한도 | 2026-11-09 확인 |
+| :--: | ----------------------------------------------- | ------------------------------------------------------- | --------: | --------------- |
+|  1   | LinkedIn Scraper API (Real-time & Fast)         | `linkedin-scraper-api-real-time-fast-affordable`        |   월 50회 | 정상            |
+|  2   | LinkedIn Profile Scraper (Profiles)             | `linkedin-profile-scraper11`                            |   월 50회 | 정상            |
+|  3   | Unlimited LinkedIn Scraper                      | `unlimited-linkedin-scraper`                            |  월 100회 | 정상            |
+|  4   | LinkedIn - Profiles, Companies & Post Search    | `linkedin-profiles-companies-post-search`               |   월 50회 | 정상            |
+|  5   | LinkedIn Profile Scraper API                    | `linkedin-profile-scraper-api3`                         |  월 300회 | 정상            |
+|  6   | Linkedin Data Scraper API                       | `realtime-linkedin-fresh-data`                          |   월 50회 | 정상            |
+|  7   | LinkedIn Scraper API (People Info)              | `linkedin-scraper-api5`                                 |  월 100회 | 정상            |
+|  8   | LinkedIn Data API (Profiles)                    | `linkedin-data-api7`                                    |  월 200회 | 정상            |
+|  9   | LinkedIn Scraper API [Stable]                   | `linkedin-scraper-api-stable1`                          |   월 50회 | 정상            |
+|  10  | Fresh LinkedIn Scraper API                      | `fresh-linkedin-scraper-api`                            |   월 50회 | 정상 (이름·헤드라인만) |
 
-> 모든 API는 하나의 `RAPIDAPI_KEY`로 무료 구독하여 사용합니다.
+> 모든 API는 하나의 `RAPIDAPI_KEY`로 무료(Basic) 플랜을 구독해 사용합니다. host 뒤에 `.p.rapidapi.com`이 붙습니다. 구독하지 않은 API는 403을 돌려주고 다음 API로 넘어갑니다.
+> 무료 한도는 2026-11-09 RapidAPI 요금제 화면 기준이며 바뀔 수 있습니다. 합계 월 1,000회입니다.
 
 <br>
 
