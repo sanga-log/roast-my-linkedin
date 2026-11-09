@@ -2,7 +2,7 @@ import { getRedis, IS_PRODUCTION } from './redis'
 
 export type RoastInput = 'url' | 'pdf' | 'screenshot'
 
-export type ScrapeBlockReason = 'invalid_url' | 'rate_limited' | 'no_api_key' | 'all_apis_exhausted'
+export type ScrapeBlockReason = 'invalid_url' | 'rate_limited' | 'no_api_key' | 'quota_exhausted' | 'all_apis_exhausted'
 
 export type RoastFailReason = 'rate_limited' | 'quota_exhausted' | 'api_error' | 'invalid_json' | 'server_error'
 

@@ -74,7 +74,12 @@ export default function Home() {
       if (scrapeData.success && scrapeData.profile?.profileText) {
         await analyzeProfileText(scrapeData.profile.profileText)
       } else {
-        setBlockReason(scrapeData.reason === 'rate_limited' ? 'rate_limited' : 'scraping')
+        // 10개 API 무료 할당량을 다 쓰면 quota_exhausted, 그 밖의 실패는 LinkedIn 차단 문구
+        setBlockReason(
+          scrapeData.reason === 'rate_limited' ? 'rate_limited'
+            : scrapeData.reason === 'quota_exhausted' ? 'quota'
+            : 'scraping',
+        )
         setScreen('blocked')
       }
     } catch {

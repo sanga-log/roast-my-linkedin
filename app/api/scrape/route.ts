@@ -350,6 +350,8 @@ export async function POST(req: NextRequest) {
   }
 
   const errors: string[] = []
+  // 429(무료 할당량 소진)로 실패한 API 수. 전부 429면 차단이 아니라 할당량 문제로 안내한다
+  let quotaExhaustedCount = 0
 
   for (const scraper of SCRAPERS) {
     try {
@@ -380,6 +382,7 @@ export async function POST(req: NextRequest) {
 
       // 429 = 할당량 초과 → 다음 API 시도
       if (response.status === 429) {
+        quotaExhaustedCount++
         errors.push(`${scraper.name}: 429 rate limited`)
         console.log(`[Scrape] ${scraper.name}: 429 — trying next`)
         continue
@@ -439,17 +442,19 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 모든 API 실패
-  console.log(`[Scrape] All APIs failed:`, errors)
-  Sentry.captureMessage('All scraping APIs failed', {
+  // 모든 API 실패. 전부 429면 무료 할당량을 다 쓴 것이라 화면에 할당량 문구를 띄운다.
+  // 하나라도 403·빈 결과·타임아웃 같은 다른 이유로 실패했으면 LinkedIn 차단 문구를 띄운다
+  const quotaExhausted = quotaExhaustedCount === SCRAPERS.length
+  console.log(`[Scrape] All APIs failed (quotaExhausted=${quotaExhausted}):`, errors)
+  Sentry.captureMessage(quotaExhausted ? 'All scraping API quotas exhausted' : 'All scraping APIs failed', {
     level: 'error',
     extra: { errors, username },
   })
   // username은 개인정보라 슬랙 알림에는 API별 실패 사유만 담는다
   await alertServerError({
     source: '/api/scrape',
-    title: '스크래핑 API 전부 실패 (무료 할당량 소진 가능성)',
+    title: quotaExhausted ? '스크래핑 API 무료 할당량 전부 소진' : '스크래핑 API 전부 실패 (무료 할당량 소진 가능성)',
     detail: errors.join(' / '),
   })
-  return respondBlocked('all_apis_exhausted', url, undefined, { errors })
+  return respondBlocked(quotaExhausted ? 'quota_exhausted' : 'all_apis_exhausted', url, undefined, { errors })
 }
