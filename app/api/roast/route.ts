@@ -190,13 +190,15 @@ export async function POST(req: NextRequest) {
     }
 
     const detectedWords: string[] = result.detectedWords || []
-    await recordEvent({ type: 'roast_succeeded', input, score: result.cringeScore, detectedWords })
-
-    notifyUserLog({
-      score: result.cringeScore,
-      detectedWords,
-      method: input === 'url' ? 'scrape' : 'upload',
-    })
+    // 응답을 보내면 서버리스 함수가 멈출 수 있어, 슬랙 전송까지 끝낸 뒤 응답한다
+    await Promise.all([
+      recordEvent({ type: 'roast_succeeded', input, score: result.cringeScore, detectedWords }),
+      notifyUserLog({
+        score: result.cringeScore,
+        detectedWords,
+        method: input === 'url' ? 'scrape' : 'upload',
+      }),
+    ])
 
     return NextResponse.json(result)
   } catch (e) {
